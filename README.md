@@ -196,5 +196,27 @@ Relações `<<include>>`:
 - Ao encerrar o período, disciplina com **pelo menos 3 alunos** fica **ativa** e ocorrerá no semestre seguinte.
 - Disciplina com **menos de 3 alunos** é **cancelada**.
 
+## Diagrama de Classes (Lab01S02)
+
+Fonte para importar no draw.io: `docs/diagrama-classes.puml`.
+
+No [diagrams.net](https://app.diagrams.net): **Arrange → Insert → Advanced → PlantUML**, cole o conteúdo do arquivo e confirme.
+
+O projeto Java está em `src/main/java/br/pucminas/matriculas`, com as mesmas classes, atributos e stubs dos métodos do diagrama. A lógica fica para a Lab01S03.
+
+| Classe | Papel |
+| --- | --- |
+| `Usuario` | Login e senha. Superclasse de Aluno, Professor e Secretaria |
+| `Aluno` | Até 4 obrigatórias e 2 optativas; cancelar; inscrever e finalizar o semestre |
+| `Professor` | Lista os alunos com matrícula ativa na disciplina |
+| `Secretaria` | Consulta, cadastra e exclui disciplinas; gera currículo; abre e encerra o período |
+| `Curso` | Nome, créditos e disciplinas que o constituem |
+| `Disciplina` | Até 60 alunos; com 60 as inscrições encerram; no fim do período, ≥ 3 fica ativa e &lt; 3 é cancelada |
+| `Matricula` | Vínculo do aluno com a disciplina no semestre (tipo e situação) |
+| `Semestre` | Ano e período; gera um currículo e possui um período de matrículas |
+| `Curriculo` | Disciplinas ofertadas naquele semestre |
+| `PeriodoMatricula` | Data de início, data de fim e encerramento |
+| `SistemaCobranca` | Notificado ao finalizar a matrícula, para cobrar o aluno no semestre |
+
 ## URL do repositório
 https://github.com/Kennykiller36/Sistema-de-Matriculas.git
