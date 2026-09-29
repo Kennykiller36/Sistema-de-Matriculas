@@ -13,6 +13,9 @@ public class Curriculo {
     }
 
     public void adicionarDisciplina(Disciplina disciplina) {
+        if (disciplina != null && !disciplinas.contains(disciplina)) {
+            disciplinas.add(disciplina);
+        }
     }
 
     public Semestre getSemestre() {

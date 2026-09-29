@@ -202,7 +202,7 @@ Fonte para importar no draw.io: `docs/diagrama-classes.puml`.
 
 No [diagrams.net](https://app.diagrams.net): **Arrange → Insert → Advanced → PlantUML**, cole o conteúdo do arquivo e confirme.
 
-O projeto Java está em `src/main/java/br/pucminas/matriculas`, com as mesmas classes, atributos e stubs dos métodos do diagrama. A lógica fica para a Lab01S03.
+O projeto Java está em `src/main/java/br/pucminas/matriculas`, com as mesmas classes e atributos do diagrama. A lógica, a interface e a persistência foram implementadas na Lab01S03.
 
 | Classe | Papel |
 | --- | --- |
@@ -217,6 +217,61 @@ O projeto Java está em `src/main/java/br/pucminas/matriculas`, com as mesmas cl
 | `Curriculo` | Disciplinas ofertadas naquele semestre |
 | `PeriodoMatricula` | Data de início, data de fim e encerramento |
 | `SistemaCobranca` | Notificado ao finalizar a matrícula, para cobrar o aluno no semestre |
+
+## Lab01S03 — Protótipo
+
+Interface em linha de comando e persistência em arquivos de texto na pasta `dados/` (criada no primeiro acesso). O diagrama de classes da Sprint 2 permanece em `docs/Diagrama_de_Classes_Sistema_de_Matrículas.png`. O modelo alinhado ao código desta sprint está em:
+
+- `docs/diagrama-classes.puml` — inclui `SistemaCobranca` (já prevista no caso de uso e no código, ausente no PNG) e os nomes reais dos métodos
+- `docs/diagrama-arquitetura.puml` — interface, domínio e persistência em arquivo
+
+No [diagrams.net](https://app.diagrams.net): **Arrange → Insert → Advanced → PlantUML**.
+
+### Como executar
+
+Na pasta do projeto:
+
+```
+mvn -q compile exec:java
+```
+
+No terminal, com o JDK (sem Maven):
+
+```
+javac -encoding UTF-8 -d target\classes (Get-ChildItem -Recurse src\main\java -Filter *.java).FullName
+java -cp target\classes br.pucminas.matriculas.ui.Main
+```
+
+Para recomeçar com os dados de demonstração, apague a pasta `dados`.
+
+### Contas de demonstração
+
+Senha de todas: `senha123`
+
+| Login | Perfil |
+| --- | --- |
+| secretaria | Secretaria |
+| ana, carlos | Professores |
+| joao, maria, pedro | Alunos de Engenharia de Software |
+
+O semestre **2026/2** já vem com currículo e período de matrículas aberto. Há seis disciplinas (ES001 a ES006).
+
+### Roteiro sugerido
+
+1. Entre como `joao`, `maria` e `pedro` e matricule os três em **ES001** (obrigatória).
+2. Entre como `ana` e consulte os alunos de Projeto de Software.
+3. Entre como `secretaria`, encerre o período e confira: ES001 fica **ativa** (3 alunos) e as demais são **canceladas**.
+4. Tente cancelar uma matrícula depois do encerramento: o sistema recusa, porque o período já fechou.
+
+### Regras atendidas
+
+- Login com senha para aluno, professor e secretaria.
+- Até 4 obrigatórias e 2 optativas, sem matrícula duplicada, só no período aberto.
+- Disciplina fecha as inscrições ao chegar a 60 alunos; o cancelamento devolve a vaga.
+- Ao encerrar o período, turma com pelo menos 3 alunos fica ativa; com menos, é cancelada.
+- Ao matricular ou finalizar, o sistema de cobranças é notificado com o aluno e as disciplinas do semestre.
+- Secretaria consulta, cadastra e exclui disciplinas, gera currículo e define ou encerra o período.
+- Professor vê só os alunos com matrícula ativa nas disciplinas que ministra.
 
 ## URL do repositório
 https://github.com/Kennykiller36/Sistema-de-Matriculas.git

@@ -12,10 +12,19 @@ public class Professor extends Usuario {
     }
 
     /**
-     * HU08 — alunos com matricula ativa na disciplina. Cancelados nao entram.
+     * HU08 — alunos com matrícula ativa na disciplina. Cancelados não entram.
      */
     public List<Aluno> listarAlunos(Disciplina disciplina) {
-        return null;
+        if (disciplina == null || !disciplinas.contains(disciplina)) {
+            throw new RegraNegocioException("Disciplina não vinculada a este professor.");
+        }
+        List<Aluno> alunos = new ArrayList<>();
+        for (Matricula matricula : disciplina.getMatriculas()) {
+            if (matricula.isAtiva() && !alunos.contains(matricula.getAluno())) {
+                alunos.add(matricula.getAluno());
+            }
+        }
+        return alunos;
     }
 
     public List<Disciplina> getDisciplinas() {

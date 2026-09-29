@@ -15,6 +15,9 @@ public class Curso {
     }
 
     public void adicionarDisciplina(Disciplina disciplina) {
+        if (disciplina != null && !disciplinas.contains(disciplina)) {
+            disciplinas.add(disciplina);
+        }
     }
 
     public String getNome() {

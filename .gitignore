@@ -3,6 +3,9 @@
 /target/
 /out/
 
+# Dados gravados pelo protótipo
+/dados/
+
 # Log file
 *.log
 

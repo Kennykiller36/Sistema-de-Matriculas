@@ -2,6 +2,11 @@ package br.pucminas.matriculas;
 
 public class Matricula {
 
+    public static final String TIPO_OBRIGATORIA = "OBRIGATORIA";
+    public static final String TIPO_OPTATIVA = "OPTATIVA";
+    public static final String SITUACAO_ATIVA = "ATIVA";
+    public static final String SITUACAO_CANCELADA = "CANCELADA";
+
     private Aluno aluno;
     private Disciplina disciplina;
     private Semestre semestre;
@@ -13,13 +18,18 @@ public class Matricula {
         this.disciplina = disciplina;
         this.semestre = semestre;
         this.tipo = tipo;
-        this.situacao = "ATIVA";
+        this.situacao = SITUACAO_ATIVA;
     }
 
     /**
-     * HU04 — cancela a matricula e devolve a vaga da disciplina.
+     * HU04 — cancela a matrícula e devolve a vaga da disciplina.
      */
     public void cancelar() {
+        this.situacao = SITUACAO_CANCELADA;
+    }
+
+    public boolean isAtiva() {
+        return SITUACAO_ATIVA.equals(situacao);
     }
 
     public Aluno getAluno() {

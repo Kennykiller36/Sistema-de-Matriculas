@@ -5,12 +5,18 @@ import java.util.List;
 
 public class Disciplina {
 
+    public static final int CAPACIDADE_PADRAO = 60;
+    public static final int MINIMO_PARA_ATIVAR = 3;
+    public static final String EM_INSCRICAO = "EM_INSCRICAO";
+    public static final String ATIVA = "ATIVA";
+    public static final String CANCELADA = "CANCELADA";
+
     private String codigo;
     private String nome;
-    private int capacidadeMaxima = 60;
-    private int minimoAlunos = 3;
+    private int capacidadeMaxima = CAPACIDADE_PADRAO;
+    private int minimoAlunos = MINIMO_PARA_ATIVAR;
     private boolean inscricoesEncerradas;
-    private String situacao = "EM_INSCRICAO";
+    private String situacao = EM_INSCRICAO;
     private Curso curso;
     private Professor professor;
     private final List<Matricula> matriculas = new ArrayList<>();
@@ -23,24 +29,46 @@ public class Disciplina {
     }
 
     public int obterQuantidadeInscritos() {
-        return 0;
+        int quantidade = 0;
+        for (Matricula matricula : matriculas) {
+            if (matricula.isAtiva()) {
+                quantidade++;
+            }
+        }
+        return quantidade;
+    }
+
+    /**
+     * Vagas restantes. Corresponde ao atributo {@code vagas} do diagrama de classes.
+     */
+    public int getVagas() {
+        return Math.max(0, capacidadeMaxima - obterQuantidadeInscritos());
     }
 
     public boolean possuiVaga() {
-        return false;
+        return !inscricoesEncerradas
+                && !CANCELADA.equals(situacao)
+                && obterQuantidadeInscritos() < capacidadeMaxima;
     }
 
     /**
-     * Encerra inscricoes quando a disciplina atinge 60 alunos.
+     * Encerra inscrições quando a disciplina atinge 60 alunos.
      */
     public void encerrarInscricoes() {
+        this.inscricoesEncerradas = true;
     }
 
     /**
-     * Ao fim do periodo: pelo menos 3 alunos deixa a disciplina ATIVA;
+     * Ao fim do período: pelo menos 3 alunos deixa a disciplina ATIVA;
      * menos de 3, CANCELADA.
      */
     public void avaliarAoFimDoPeriodo() {
+        if (obterQuantidadeInscritos() >= minimoAlunos) {
+            this.situacao = ATIVA;
+        } else {
+            this.situacao = CANCELADA;
+            this.inscricoesEncerradas = true;
+        }
     }
 
     public String getCodigo() {

@@ -15,10 +15,13 @@ public abstract class Usuario {
     }
 
     /**
-     * HU01 — valida usuario e senha. O acesso so e liberado apos autenticacao.
+     * HU01 — valida usuário e senha. O acesso só é liberado após autenticação.
      */
     public boolean autenticar(String login, String senha) {
-        return false;
+        return login != null
+                && senha != null
+                && this.login.equalsIgnoreCase(login)
+                && this.senha.equals(senha);
     }
 
     public String getId() {

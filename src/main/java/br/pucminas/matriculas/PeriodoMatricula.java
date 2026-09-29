@@ -16,10 +16,14 @@ public class PeriodoMatricula {
     }
 
     public boolean estaAberto(LocalDate data) {
-        return false;
+        if (encerrado || data == null || dataInicio == null || dataFim == null) {
+            return false;
+        }
+        return !data.isBefore(dataInicio) && !data.isAfter(dataFim);
     }
 
     public void encerrar() {
+        this.encerrado = true;
     }
 
     public LocalDate getDataInicio() {
