@@ -54,6 +54,24 @@ class CancelamentoMatriculaTest {
         assertEquals(dadosNaRaiz.toAbsolutePath().normalize(), escolhido);
     }
 
+    @Test
+    void usaAPastaDeDadosMaisRecente(@TempDir Path raiz) throws Exception {
+        Path projeto = raiz.resolve("Sistema de Matriculas");
+        Path dadosProjeto = projeto.resolve("dados");
+        Path dadosRaiz = raiz.resolve("dados");
+        Files.createDirectories(dadosProjeto);
+        Files.createDirectories(dadosRaiz);
+        Path antiga = dadosProjeto.resolve("secretaria.txt");
+        Path nova = dadosRaiz.resolve("secretaria.txt");
+        Files.writeString(antiga, "antiga");
+        Files.writeString(nova, "nova");
+        Files.setLastModifiedTime(antiga, java.nio.file.attribute.FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(nova, java.nio.file.attribute.FileTime.fromMillis(5_000));
+
+        Path escolhido = Main.resolverDiretorioDados(projeto, projeto);
+        assertEquals(dadosRaiz.toAbsolutePath().normalize(), escolhido);
+    }
+
     private List<Matricula> matriculas(String... codigos) {
         Curso curso = new Curso("Engenharia de Software", 240);
         Professor professor = new Professor("p1", "Ana", "ana", "senha123");

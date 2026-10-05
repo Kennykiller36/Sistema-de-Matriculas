@@ -32,8 +32,9 @@ public class Secretaria extends Usuario {
         if (disciplina == null || textoInvalido(disciplina.getCodigo()) || textoInvalido(disciplina.getNome())) {
             throw new RegraNegocioException("Informe código e nome da disciplina.");
         }
-        if (disciplina.getCodigo().contains("|") || disciplina.getNome().contains("|")) {
-            throw new RegraNegocioException("Código e nome não podem conter '|'.");
+        if (disciplina.getCodigo().contains("|") || disciplina.getCodigo().contains(",")
+                || disciplina.getCodigo().contains("@") || disciplina.getNome().contains("|")) {
+            throw new RegraNegocioException("Código não pode conter '|', ',' ou '@'.");
         }
         for (Disciplina existente : disciplinas) {
             if (existente.getCodigo().equalsIgnoreCase(disciplina.getCodigo())) {

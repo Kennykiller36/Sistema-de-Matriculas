@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,14 +68,17 @@ public class PersistenciaArquivo {
             }
             escrever("alunos.txt", alunos);
 
+            List<Disciplina> disciplinasDoSistema = todasDisciplinas(secretaria);
+            Map<Disciplina, String> chaves = chavesDeArquivo(disciplinasDoSistema, secretaria);
+
             List<String> disciplinas = new ArrayList<>();
-            for (Disciplina disciplina : todasDisciplinas(secretaria)) {
+            for (Disciplina disciplina : disciplinasDoSistema) {
                 String loginProfessor = disciplina.getProfessor() == null
                         ? ""
                         : disciplina.getProfessor().getLogin();
                 boolean noCatalogo = secretaria.getDisciplinas().contains(disciplina);
                 disciplinas.add(juntar(
-                        disciplina.getCodigo(),
+                        chaves.get(disciplina),
                         disciplina.getNome(),
                         disciplina.getCurso().getNome(),
                         loginProfessor,
@@ -96,7 +100,7 @@ public class PersistenciaArquivo {
                     curriculos.add(juntar(
                             Integer.toString(semestre.getAno()),
                             Integer.toString(semestre.getPeriodo()),
-                            codigos(semestre.getCurriculo())));
+                            codigos(semestre.getCurriculo(), chaves)));
                 }
                 PeriodoMatricula periodo = semestre.getPeriodoMatricula();
                 if (periodo != null) {
@@ -116,9 +120,13 @@ public class PersistenciaArquivo {
             List<String> matriculas = new ArrayList<>();
             for (Aluno aluno : secretaria.getAlunos()) {
                 for (Matricula matricula : aluno.getMatriculas()) {
+                    String chave = chaves.get(matricula.getDisciplina());
+                    if (chave == null) {
+                        chave = matricula.getDisciplina().getCodigo();
+                    }
                     matriculas.add(juntar(
                             aluno.getMatricula(),
-                            matricula.getDisciplina().getCodigo(),
+                            chave,
                             Integer.toString(matricula.getSemestre().getAno()),
                             Integer.toString(matricula.getSemestre().getPeriodo()),
                             matricula.getTipo(),
@@ -158,7 +166,8 @@ public class PersistenciaArquivo {
                 String[] colunas = colunas(linha, 9);
                 Curso curso = buscarCurso(secretaria, colunas[2]);
                 Professor professor = colunas[3].isBlank() ? null : buscarProfessor(secretaria, colunas[3]);
-                Disciplina disciplina = new Disciplina(colunas[0], colunas[1], curso, professor);
+                String chave = colunas[0];
+                Disciplina disciplina = new Disciplina(codigoReal(chave), colunas[1], curso, professor);
                 disciplina.setCapacidadeMaxima(Integer.parseInt(colunas[4]));
                 disciplina.setMinimoAlunos(Integer.parseInt(colunas[5]));
                 disciplina.setInscricoesEncerradas(Boolean.parseBoolean(colunas[6]));
@@ -166,7 +175,7 @@ public class PersistenciaArquivo {
                 if (Boolean.parseBoolean(colunas[8])) {
                     secretaria.cadastrarDisciplina(disciplina);
                 }
-                disciplinasPorCodigo.put(disciplina.getCodigo(), disciplina);
+                disciplinasPorCodigo.put(chave, disciplina);
             }
             for (String linha : ler("semestres.txt")) {
                 String[] colunas = colunas(linha, 2);
@@ -291,7 +300,7 @@ public class PersistenciaArquivo {
             String[] colunas = colunas(linha, 5);
             Semestre semestre = buscarSemestre(
                     secretaria, Integer.parseInt(colunas[0]), Integer.parseInt(colunas[1]));
-            semestre.definirOferta(colunas[2], colunas[3], Boolean.parseBoolean(colunas[4]));
+            semestre.definirOferta(codigoReal(colunas[2]), colunas[3], Boolean.parseBoolean(colunas[4]));
         }
     }
 
@@ -354,13 +363,42 @@ public class PersistenciaArquivo {
         return todas;
     }
 
-    private String codigos(Curriculo curriculo) {
+    private Map<Disciplina, String> chavesDeArquivo(List<Disciplina> disciplinas, Secretaria secretaria) {
+        Map<String, List<Disciplina>> porCodigo = new LinkedHashMap<>();
+        for (Disciplina disciplina : disciplinas) {
+            porCodigo.computeIfAbsent(disciplina.getCodigo(), codigo -> new ArrayList<>()).add(disciplina);
+        }
+        Map<Disciplina, String> chaves = new IdentityHashMap<>();
+        for (List<Disciplina> grupo : porCodigo.values()) {
+            int historico = 1;
+            boolean catalogoUsouCodigo = false;
+            for (Disciplina disciplina : grupo) {
+                boolean noCatalogo = secretaria.getDisciplinas().contains(disciplina);
+                if (grupo.size() == 1 || (noCatalogo && !catalogoUsouCodigo)) {
+                    chaves.put(disciplina, disciplina.getCodigo());
+                    catalogoUsouCodigo = catalogoUsouCodigo || noCatalogo;
+                } else {
+                    chaves.put(disciplina, disciplina.getCodigo() + "@" + historico);
+                    historico++;
+                }
+            }
+        }
+        return chaves;
+    }
+
+    private String codigoReal(String chave) {
+        int separador = chave.indexOf('@');
+        return separador < 0 ? chave : chave.substring(0, separador);
+    }
+
+    private String codigos(Curriculo curriculo, Map<Disciplina, String> chaves) {
         StringBuilder codigos = new StringBuilder();
         for (Disciplina disciplina : curriculo.getDisciplinas()) {
             if (codigos.length() > 0) {
                 codigos.append(',');
             }
-            codigos.append(disciplina.getCodigo());
+            String chave = chaves.get(disciplina);
+            codigos.append(chave == null ? disciplina.getCodigo() : chave);
         }
         return codigos.toString();
     }

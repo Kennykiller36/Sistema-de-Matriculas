@@ -18,6 +18,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -65,23 +66,65 @@ public class Main {
     static Path resolverDiretorioDados(Path diretorioAtual, Path pastaProjeto) {
         List<Path> candidatos = new ArrayList<>();
         if (pastaProjeto != null) {
-            candidatos.add(pastaProjeto.resolve("dados"));
+            candidatos.add(pastaProjeto.resolve("dados").toAbsolutePath().normalize());
         }
         if (diretorioAtual != null) {
-            candidatos.add(diretorioAtual.resolve("dados"));
-            if (diretorioAtual.getParent() != null) {
-                candidatos.add(diretorioAtual.getParent().resolve("dados"));
+            Path atual = diretorioAtual.toAbsolutePath().normalize();
+            candidatos.add(atual.resolve("dados"));
+            if (atual.getParent() != null) {
+                candidatos.add(atual.getParent().resolve("dados"));
             }
         }
+        Path escolhido = null;
+        FileTime maisRecente = null;
+        List<Path> visitados = new ArrayList<>();
         for (Path candidato : candidatos) {
-            if (Files.exists(candidato.resolve("secretaria.txt"))) {
-                return candidato.toAbsolutePath().normalize();
+            if (visitados.contains(candidato)) {
+                continue;
             }
+            visitados.add(candidato);
+            Path marca = candidato.resolve("secretaria.txt");
+            if (!Files.exists(marca)) {
+                continue;
+            }
+            try {
+                FileTime modificado = Files.getLastModifiedTime(marca);
+                if (escolhido == null || modificado.compareTo(maisRecente) > 0) {
+                    escolhido = candidato;
+                    maisRecente = modificado;
+                }
+            } catch (java.io.IOException e) {
+                if (escolhido == null) {
+                    escolhido = candidato;
+                }
+            }
+        }
+        if (escolhido != null) {
+            return escolhido;
         }
         if (pastaProjeto != null) {
             return pastaProjeto.resolve("dados").toAbsolutePath().normalize();
         }
         return Path.of("dados").toAbsolutePath().normalize();
+    }
+
+    /**
+     * Semestre em que a disciplina ainda pode ser ofertada. Um semestre já encerrado não esconde essa oferta.
+     */
+    public static Semestre semestreEmInscricao(Disciplina disciplina, List<Semestre> semestres) {
+        if (disciplina == null || semestres == null) {
+            return null;
+        }
+        for (Semestre semestre : semestres) {
+            PeriodoMatricula periodo = semestre.getPeriodoMatricula();
+            if (periodo != null && periodo.isEncerrado()) {
+                continue;
+            }
+            if (semestre.getCurriculo() != null && semestre.getCurriculo().getDisciplinas().contains(disciplina)) {
+                return semestre;
+            }
+        }
+        return null;
     }
 
     private static Path localizarPastaDoProjeto() {
@@ -875,6 +918,9 @@ public class Main {
     }
 
     private String descrever(Disciplina disciplina, Semestre semestre) {
+        if (semestre == null) {
+            semestre = semestreEmInscricao(disciplina, aplicacao.getSecretaria().getSemestres());
+        }
         String professor = disciplina.getProfessor() == null ? "sem professor" : disciplina.getProfessor().getNome();
         int inscritos = semestre == null
                 ? disciplina.obterQuantidadeInscritos()
