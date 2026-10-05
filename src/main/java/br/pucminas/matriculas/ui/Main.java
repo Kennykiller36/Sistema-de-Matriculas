@@ -16,6 +16,7 @@ import java.io.Console;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -31,6 +32,9 @@ import java.util.regex.Pattern;
  */
 public class Main {
 
+    private static final List<String> LOGINS_DEMONSTRACAO = List.of(
+            "secretaria", "ana", "carlos", "joao", "maria", "pedro");
+
     private final Aplicacao aplicacao;
     private final Scanner scanner;
 
@@ -39,16 +43,72 @@ public class Main {
         this.scanner = scanner;
     }
 
-    public static void main(String[] args) {
+    public static void iniciar(String[] args) {
         Charset charset = charsetDoTerminal();
         System.setOut(new PrintStream(System.out, true, charset));
         System.setErr(new PrintStream(System.err, true, charset));
-        Path dados = args.length > 0 ? Path.of(args[0]) : Path.of("dados");
+        Path dados = args.length > 0 ? Path.of(args[0]) : diretorioDados();
         Aplicacao aplicacao = new Aplicacao(dados);
         System.out.println(aplicacao.isPrimeiroAcesso()
                 ? "Primeiro acesso. Dados de demonstração gravados em " + dados.toAbsolutePath()
                 : "Dados carregados de " + dados.toAbsolutePath());
         new Main(aplicacao, new Scanner(System.in, charset)).executar();
+    }
+
+    static Path diretorioDados() {
+        return resolverDiretorioDados(Path.of("").toAbsolutePath().normalize(), localizarPastaDoProjeto());
+    }
+
+    /**
+     * Usa a pasta {@code dados} que já tem o sistema, esteja o programa aberto pela raiz ou pela pasta do projeto.
+     */
+    static Path resolverDiretorioDados(Path diretorioAtual, Path pastaProjeto) {
+        List<Path> candidatos = new ArrayList<>();
+        if (pastaProjeto != null) {
+            candidatos.add(pastaProjeto.resolve("dados"));
+        }
+        if (diretorioAtual != null) {
+            candidatos.add(diretorioAtual.resolve("dados"));
+            if (diretorioAtual.getParent() != null) {
+                candidatos.add(diretorioAtual.getParent().resolve("dados"));
+            }
+        }
+        for (Path candidato : candidatos) {
+            if (Files.exists(candidato.resolve("secretaria.txt"))) {
+                return candidato.toAbsolutePath().normalize();
+            }
+        }
+        if (pastaProjeto != null) {
+            return pastaProjeto.resolve("dados").toAbsolutePath().normalize();
+        }
+        return Path.of("dados").toAbsolutePath().normalize();
+    }
+
+    private static Path localizarPastaDoProjeto() {
+        try {
+            java.net.URL url = Main.class.getProtectionDomain().getCodeSource().getLocation();
+            if (url != null) {
+                Path classes = Path.of(url.toURI());
+                Path pasta = classes.getParent() == null ? null : classes.getParent().getParent();
+                if (pasta != null && Files.exists(pasta.resolve("pom.xml"))) {
+                    return pasta;
+                }
+            }
+        } catch (Exception ignorado) {
+            // A pasta atual ainda pode ser a do projeto.
+        }
+        Path atual = Path.of("").toAbsolutePath().normalize();
+        if (Files.exists(atual.resolve("pom.xml"))) {
+            return atual;
+        }
+        Path aninhado = atual.resolve("Sistema de Matriculas");
+        if (Files.exists(aninhado.resolve("pom.xml"))) {
+            return aninhado;
+        }
+        if (atual.getParent() != null && Files.exists(atual.getParent().resolve("pom.xml"))) {
+            return atual.getParent();
+        }
+        return null;
     }
 
     /**
@@ -98,11 +158,9 @@ public class Main {
         System.out.println("========================================");
         System.out.println(" Sistema de Matrículas - PUC Minas");
         System.out.println("========================================");
-        System.out.println("Contas de demonstração (senha123):");
-        System.out.println("  secretaria | ana | carlos | joao | maria | pedro");
-        System.out.println();
 
         while (true) {
+            listarUsuariosTeste();
             String login = ler("Login (ou sair): ");
             if (login == null) {
                 System.out.println();
@@ -270,7 +328,7 @@ public class Main {
                 continue;
             }
             for (Disciplina disciplina : semestre.getCurriculo().getDisciplinas()) {
-                System.out.println("  " + descrever(disciplina));
+                System.out.println("  " + descrever(disciplina, semestre));
             }
         }
     }
@@ -291,7 +349,7 @@ public class Main {
                 ofertadas.add(disciplina);
             }
         }
-        Disciplina disciplina = escolherDisciplina(ofertadas);
+        Disciplina disciplina = escolherDisciplina(ofertadas, semestre);
         if (disciplina == null) {
             return;
         }
@@ -321,32 +379,108 @@ public class Main {
                     + " | " + rotuloTipo(matricula.getTipo())
                     + " | " + rotulo(matricula.getSemestre()));
         }
-        String texto = ler("Matrícula (número ou enter para voltar): ");
+        String texto = ler("Matrícula (número, código ou enter para voltar): ");
         if (texto == null || texto.isBlank()) {
             return;
         }
-        int indice;
-        try {
-            indice = Integer.parseInt(texto);
-        } catch (NumberFormatException e) {
-            System.out.println("Informe o número da matrícula.");
-            return;
-        }
-        if (indice < 1 || indice > ativas.size()) {
+        Matricula escolhida = localizarMatricula(ativas, texto);
+        if (escolhida == null) {
             System.out.println("Matrícula não encontrada.");
             return;
         }
-        aplicacao.cancelarMatricula(aluno, ativas.get(indice - 1));
+        aplicacao.cancelarMatricula(aluno, escolhida);
         System.out.println("Matrícula cancelada. A vaga voltou para a disciplina.");
         mostrarUltimaCobranca();
     }
 
+    /**
+     * Número da lista (1, 2, 3), código (ES002) ou o número da disciplina com zeros (002).
+     * "002" não vale como a segunda linha: isso cancelaria outra disciplina.
+     */
+    static Matricula localizarMatricula(List<Matricula> ativas, String texto) {
+        String busca = texto.trim();
+        for (Matricula matricula : ativas) {
+            if (matricula.getDisciplina().getCodigo().equalsIgnoreCase(busca)) {
+                return matricula;
+            }
+        }
+        if (busca.chars().allMatch(Character::isDigit) && busca.length() > 1 && busca.startsWith("0")) {
+            Matricula encontrada = null;
+            for (Matricula matricula : ativas) {
+                if (digitosDoCodigo(matricula.getDisciplina().getCodigo()).equals(busca)) {
+                    if (encontrada != null) {
+                        return null;
+                    }
+                    encontrada = matricula;
+                }
+            }
+            return encontrada;
+        }
+        try {
+            int indice = Integer.parseInt(busca);
+            if (indice >= 1 && indice <= ativas.size()) {
+                return ativas.get(indice - 1);
+            }
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return null;
+    }
+
+    private static String digitosDoCodigo(String codigo) {
+        StringBuilder digitos = new StringBuilder();
+        for (int i = 0; i < codigo.length(); i++) {
+            if (Character.isDigit(codigo.charAt(i))) {
+                digitos.append(codigo.charAt(i));
+            }
+        }
+        return digitos.toString();
+    }
+
+    private void listarUsuariosTeste() {
+        Secretaria secretaria = aplicacao.getSecretaria();
+        List<String> demonstracao = new ArrayList<>();
+        List<String> cadastrados = new ArrayList<>();
+        separarLogins(secretaria.getLogin(), demonstracao, cadastrados);
+        for (Professor professor : secretaria.getProfessores()) {
+            separarLogins(professor.getLogin(), demonstracao, cadastrados);
+        }
+        for (Aluno aluno : secretaria.getAlunos()) {
+            separarLogins(aluno.getLogin(), demonstracao, cadastrados);
+        }
+        System.out.println();
+        System.out.println("Contas de demonstração (senha123):");
+        System.out.println("  " + String.join(" | ", demonstracao));
+        if (!cadastrados.isEmpty()) {
+            System.out.println("Usuários cadastrados (senha definida no cadastro):");
+            System.out.println("  " + String.join(" | ", cadastrados));
+        }
+        System.out.println();
+    }
+
+    private void separarLogins(String login, List<String> demonstracao, List<String> cadastrados) {
+        if (login == null || login.isBlank()) {
+            return;
+        }
+        if (LOGINS_DEMONSTRACAO.contains(login.toLowerCase(Locale.ROOT))) {
+            demonstracao.add(login);
+        } else {
+            cadastrados.add(login);
+        }
+    }
+
     private void verMatriculas(Aluno aluno) {
-        if (aluno.getMatriculas().isEmpty()) {
+        List<Matricula> ativas = new ArrayList<>();
+        for (Matricula matricula : aluno.getMatriculas()) {
+            if (matricula.isAtiva()) {
+                ativas.add(matricula);
+            }
+        }
+        if (ativas.isEmpty()) {
             System.out.println("Nenhuma matrícula registrada.");
             return;
         }
-        for (Matricula matricula : aluno.getMatriculas()) {
+        for (Matricula matricula : ativas) {
             System.out.println("- " + matricula.getDisciplina().getCodigo()
                     + " - " + matricula.getDisciplina().getNome()
                     + " | " + rotuloTipo(matricula.getTipo())
@@ -546,8 +680,10 @@ public class Main {
             return;
         }
         for (Disciplina disciplina : periodo.getSemestre().getCurriculo().getDisciplinas()) {
-            System.out.println("- " + disciplina.getCodigo() + " -> " + rotuloSituacao(disciplina.getSituacao())
-                    + " (" + disciplina.obterQuantidadeInscritos() + " alunos)");
+            Semestre semestre = periodo.getSemestre();
+            System.out.println("- " + disciplina.getCodigo() + " -> "
+                    + rotuloSituacao(semestre.situacaoNaOferta(disciplina))
+                    + " (" + disciplina.obterQuantidadeInscritos(semestre) + " alunos)");
         }
     }
 
@@ -663,12 +799,16 @@ public class Main {
     }
 
     private Disciplina escolherDisciplina(List<Disciplina> disciplinas) {
+        return escolherDisciplina(disciplinas, null);
+    }
+
+    private Disciplina escolherDisciplina(List<Disciplina> disciplinas, Semestre semestre) {
         if (disciplinas.isEmpty()) {
             System.out.println("Nenhuma disciplina disponível.");
             return null;
         }
         for (int i = 0; i < disciplinas.size(); i++) {
-            System.out.println((i + 1) + ". " + descrever(disciplinas.get(i)));
+            System.out.println((i + 1) + ". " + descrever(disciplinas.get(i), semestre));
         }
         while (true) {
             String texto = ler("Disciplina (número, código ou enter para voltar): ");
@@ -683,18 +823,32 @@ public class Main {
         }
     }
 
-    private Disciplina localizarDisciplina(List<Disciplina> disciplinas, String texto) {
+    static Disciplina localizarDisciplina(List<Disciplina> disciplinas, String texto) {
+        String busca = texto.trim();
+        for (Disciplina disciplina : disciplinas) {
+            if (disciplina.getCodigo().equalsIgnoreCase(busca)) {
+                return disciplina;
+            }
+        }
+        if (busca.chars().allMatch(Character::isDigit) && busca.length() > 1 && busca.startsWith("0")) {
+            Disciplina encontrada = null;
+            for (Disciplina disciplina : disciplinas) {
+                if (digitosDoCodigo(disciplina.getCodigo()).equals(busca)) {
+                    if (encontrada != null) {
+                        return null;
+                    }
+                    encontrada = disciplina;
+                }
+            }
+            return encontrada;
+        }
         try {
-            int indice = Integer.parseInt(texto);
+            int indice = Integer.parseInt(busca);
             if (indice >= 1 && indice <= disciplinas.size()) {
                 return disciplinas.get(indice - 1);
             }
-        } catch (NumberFormatException ignorado) {
-            for (Disciplina disciplina : disciplinas) {
-                if (disciplina.getCodigo().equalsIgnoreCase(texto)) {
-                    return disciplina;
-                }
-            }
+        } catch (NumberFormatException e) {
+            return null;
         }
         return null;
     }
@@ -717,13 +871,26 @@ public class Main {
     }
 
     private String descrever(Disciplina disciplina) {
+        return descrever(disciplina, null);
+    }
+
+    private String descrever(Disciplina disciplina, Semestre semestre) {
         String professor = disciplina.getProfessor() == null ? "sem professor" : disciplina.getProfessor().getNome();
-        String vagas = disciplina.obterQuantidadeInscritos() + "/" + disciplina.getCapacidadeMaxima() + " inscritos";
-        String extra = disciplina.isInscricoesEncerradas() ? " | inscrições encerradas" : "";
+        int inscritos = semestre == null
+                ? disciplina.obterQuantidadeInscritos()
+                : disciplina.obterQuantidadeInscritos(semestre);
+        String situacao = semestre == null
+                ? disciplina.getSituacao()
+                : semestre.situacaoNaOferta(disciplina);
+        boolean encerradas = semestre == null
+                ? disciplina.isInscricoesEncerradas()
+                : semestre.inscricoesEncerradasNaOferta(disciplina);
+        String vagas = inscritos + "/" + disciplina.getCapacidadeMaxima() + " inscritos";
+        String extra = encerradas ? " | inscrições encerradas" : "";
         return disciplina.getCodigo() + " - " + disciplina.getNome()
                 + " | " + professor
                 + " | " + vagas
-                + " | " + rotuloSituacao(disciplina.getSituacao())
+                + " | " + rotuloSituacao(situacao)
                 + extra;
     }
 

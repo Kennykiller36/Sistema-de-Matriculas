@@ -40,7 +40,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.5.0</version>
                 <configuration>
-                    <mainClass>br.pucminas.matriculas.ui.Main</mainClass>
+                    <mainClass>br.pucminas.matriculas.Application</mainClass>
                 </configuration>
             </plugin>
         </plugins>

@@ -70,7 +70,7 @@ public class Secretaria extends Usuario {
         if (disciplina.getCurso() != null) {
             disciplina.getCurso().getDisciplinas().remove(disciplina);
         }
-        if (disciplina.getProfessor() != null) {
+        if (disciplina.getProfessor() != null && !permaneceEmSemestreEncerrado(disciplina)) {
             disciplina.getProfessor().getDisciplinas().remove(disciplina);
         }
         for (Semestre semestre : semestres) {
@@ -95,7 +95,7 @@ public class Secretaria extends Usuario {
         }
         if (semestre.getCurriculo() != null) {
             for (Disciplina antiga : semestre.getCurriculo().getDisciplinas()) {
-                if (!selecionadas.contains(antiga) && antiga.obterQuantidadeInscritos() > 0) {
+                if (!selecionadas.contains(antiga) && antiga.obterQuantidadeInscritos(semestre) > 0) {
                     throw new RegraNegocioException(
                             "Não é possível remover do currículo a disciplina "
                                     + antiga.getCodigo() + " com alunos matriculados.");
@@ -111,6 +111,9 @@ public class Secretaria extends Usuario {
                 throw new RegraNegocioException("Disciplina não cadastrada: " + disciplina.getCodigo());
             }
             curriculo.adicionarDisciplina(disciplina);
+            if (semestre.getSituacaoOferta(disciplina.getCodigo()) == null) {
+                semestre.definirOferta(disciplina.getCodigo(), Disciplina.EM_INSCRICAO, false);
+            }
         }
         semestre.setCurriculo(curriculo);
         return curriculo;
@@ -152,7 +155,7 @@ public class Secretaria extends Usuario {
         Semestre semestre = periodo.getSemestre();
         if (semestre != null && semestre.getCurriculo() != null) {
             for (Disciplina disciplina : semestre.getCurriculo().getDisciplinas()) {
-                disciplina.avaliarAoFimDoPeriodo();
+                disciplina.avaliarAoFimDoPeriodo(semestre);
             }
         }
     }
@@ -267,19 +270,35 @@ public class Secretaria extends Usuario {
                 || usuario.getSenha().contains("|") || usuario.getLogin().contains(" ")) {
             throw new RegraNegocioException("Login não pode conter espaço ou '|'.");
         }
-        if (getLogin().equals(usuario.getLogin())) {
+        if (mesmoLogin(getLogin(), usuario.getLogin())) {
             throw new RegraNegocioException("Login já cadastrado.");
         }
         for (Professor professor : professores) {
-            if (professor != usuario && professor.getLogin().equals(usuario.getLogin())) {
+            if (professor != usuario && mesmoLogin(professor.getLogin(), usuario.getLogin())) {
                 throw new RegraNegocioException("Login já cadastrado.");
             }
         }
         for (Aluno aluno : alunos) {
-            if (aluno != usuario && aluno.getLogin().equals(usuario.getLogin())) {
+            if (aluno != usuario && mesmoLogin(aluno.getLogin(), usuario.getLogin())) {
                 throw new RegraNegocioException("Login já cadastrado.");
             }
         }
+    }
+
+    private boolean permaneceEmSemestreEncerrado(Disciplina disciplina) {
+        for (Semestre semestre : semestres) {
+            PeriodoMatricula periodo = semestre.getPeriodoMatricula();
+            if (periodo != null && periodo.isEncerrado()
+                    && semestre.getCurriculo() != null
+                    && semestre.getCurriculo().getDisciplinas().contains(disciplina)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean mesmoLogin(String existente, String informado) {
+        return existente != null && informado != null && existente.equalsIgnoreCase(informado);
     }
 
     private String proximoId(String prefixo) {

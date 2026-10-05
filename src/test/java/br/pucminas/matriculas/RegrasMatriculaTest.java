@@ -128,6 +128,131 @@ class RegrasMatriculaTest {
     }
 
     @Test
+    void cursoTemNomeCreditosEVariasDisciplinas() {
+        Cenario cenario = cenarioComDisciplinas(3);
+
+        assertEquals("Engenharia de Software", cenario.curso.getNome());
+        assertEquals(240, cenario.curso.getNumeroCreditos());
+        assertEquals(3, cenario.curso.getDisciplinas().size());
+        assertTrue(cenario.curso.getDisciplinas().containsAll(cenario.disciplinas));
+    }
+
+    @Test
+    void secretariaGeraCurriculoPorSemestreEMantemCadastros() {
+        Cenario cenario = cenarioComDisciplinas(2);
+        Aluno aluno = novoAluno(cenario, "joao", "1");
+
+        assertEquals(2, cenario.secretaria.consultarDisciplinas().size());
+        assertEquals(1, cenario.secretaria.getProfessores().size());
+        assertTrue(cenario.secretaria.getAlunos().contains(aluno));
+        assertEquals(cenario.semestre, cenario.semestre.getCurriculo().getSemestre());
+        assertEquals(2, cenario.semestre.getCurriculo().getDisciplinas().size());
+
+        Semestre seguinte = cenario.secretaria.abrirSemestre(2027, 1);
+        cenario.secretaria.gerarCurriculo(seguinte, List.of(cenario.disciplinas.get(0)));
+
+        assertEquals(2027, seguinte.getAno());
+        assertEquals(1, seguinte.getCurriculo().getDisciplinas().size());
+        assertEquals("D1", seguinte.getCurriculo().getDisciplinas().get(0).getCodigo());
+    }
+
+    @Test
+    void cancelaMatriculaAnteriorDuranteOPeriodo() {
+        Cenario cenario = cenarioComDisciplinas(2);
+        CobrancaMemoria cobranca = new CobrancaMemoria();
+        Aluno aluno = novoAluno(cenario, "joao", "1");
+        aluno.setSistemaCobranca(cobranca);
+
+        Matricula cancelada = aluno.matricularObrigatoria(cenario.disciplinas.get(0), cenario.semestre);
+        aluno.cancelarMatricula(cancelada);
+
+        assertFalse(cancelada.isAtiva());
+        assertEquals(0, cenario.disciplinas.get(0).obterQuantidadeInscritos());
+        assertTrue(cenario.professor.listarAlunos(cenario.disciplinas.get(0)).isEmpty());
+        assertFalse(cobranca.ultima.contains(cenario.disciplinas.get(0)));
+
+        aluno.matricularObrigatoria(cenario.disciplinas.get(1), cenario.semestre);
+        assertEquals(1, ativas(aluno).size());
+        assertEquals("D2", ativas(aluno).get(0).getDisciplina().getCodigo());
+        assertTrue(cobranca.ultima.contains(cenario.disciplinas.get(1)));
+        assertFalse(cobranca.ultima.contains(cenario.disciplinas.get(0)));
+    }
+
+    @Test
+    void matriculaECancelamentoSoOcorremDentroDasDatasDoPeriodo() {
+        Cenario cenario = cenarioComDisciplinas(1);
+        Aluno aluno = novoAluno(cenario, "joao", "1");
+        PeriodoMatricula periodo = cenario.semestre.getPeriodoMatricula();
+        Disciplina disciplina = cenario.disciplinas.get(0);
+
+        periodo.setDataInicio(LocalDate.now().plusDays(2));
+        periodo.setDataFim(LocalDate.now().plusDays(10));
+        assertThrows(RegraNegocioException.class,
+                () -> aluno.matricularObrigatoria(disciplina, cenario.semestre));
+
+        periodo.setDataInicio(LocalDate.now().minusDays(10));
+        periodo.setDataFim(LocalDate.now().minusDays(1));
+        assertThrows(RegraNegocioException.class,
+                () -> aluno.matricularObrigatoria(disciplina, cenario.semestre));
+
+        periodo.setDataFim(LocalDate.now().plusDays(1));
+        Matricula matricula = aluno.matricularObrigatoria(disciplina, cenario.semestre);
+        periodo.setDataFim(LocalDate.now().minusDays(1));
+        assertThrows(RegraNegocioException.class, () -> aluno.cancelarMatricula(matricula));
+        assertTrue(matricula.isAtiva());
+    }
+
+    @Test
+    void professorESecretariaTambemExigemSenha() {
+        Cenario cenario = cenarioComDisciplinas(1);
+
+        assertTrue(cenario.professor.autenticar("ana", "senha123"));
+        assertFalse(cenario.professor.autenticar("ana", "errada"));
+        assertTrue(cenario.secretaria.autenticar("secretaria", "senha123"));
+        assertFalse(cenario.secretaria.autenticar("secretaria", "outra"));
+    }
+
+    @Test
+    void disciplinaCanceladaVoltaASerOfertadaNoSemestreSeguinte() {
+        Cenario cenario = cenarioComDisciplinas(1);
+        Disciplina disciplina = cenario.disciplinas.get(0);
+        disciplina.setCapacidadeMaxima(2);
+        Aluno joao = novoAluno(cenario, "joao", "1");
+        Aluno maria = novoAluno(cenario, "maria", "2");
+        joao.matricularObrigatoria(disciplina, cenario.semestre);
+        maria.matricularObrigatoria(disciplina, cenario.semestre);
+
+        Aluno bloqueado = novoAluno(cenario, "bloqueado", "3");
+        assertThrows(RegraNegocioException.class,
+                () -> bloqueado.matricularObrigatoria(disciplina, cenario.semestre));
+
+        cenario.secretaria.encerrarPeriodoMatriculas(cenario.semestre.getPeriodoMatricula());
+        assertEquals(Disciplina.CANCELADA, cenario.semestre.situacaoNaOferta(disciplina));
+
+        Semestre seguinte = cenario.secretaria.abrirSemestre(2027, 1);
+        cenario.secretaria.gerarCurriculo(seguinte, List.of(disciplina));
+        cenario.secretaria.definirPeriodoMatriculas(
+                seguinte, LocalDate.now().minusDays(1), LocalDate.now().plusDays(10));
+
+        bloqueado.matricularObrigatoria(disciplina, seguinte);
+        assertEquals(1, disciplina.obterQuantidadeInscritos(seguinte));
+        assertEquals(2, disciplina.obterQuantidadeInscritos(cenario.semestre));
+        assertEquals(Disciplina.EM_INSCRICAO, seguinte.situacaoNaOferta(disciplina));
+        assertEquals(Disciplina.CANCELADA, cenario.semestre.situacaoNaOferta(disciplina));
+    }
+
+    @Test
+    void naoPermiteLoginIgualIgnorandoMaiusculas() {
+        Cenario cenario = cenarioComDisciplinas(1);
+        novoAluno(cenario, "joao", "1");
+
+        assertThrows(RegraNegocioException.class,
+                () -> cenario.secretaria.cadastrarProfessor("Outro Joao", "JOAO", "abc"));
+        assertThrows(RegraNegocioException.class,
+                () -> cenario.secretaria.cadastrarAluno("Outra Secretaria", "Secretaria", "abc", "9", cenario.curso));
+    }
+
+    @Test
     void exclusaoRemoveDisciplinaDosCurriculosAindaAbertos() {
         Cenario cenario = cenarioComDisciplinas(1);
         Disciplina disciplina = cenario.disciplinas.get(0);
@@ -143,6 +268,7 @@ class RegrasMatriculaTest {
         assertFalse(cenario.secretaria.consultarDisciplinas().contains(disciplina));
         assertFalse(cenario.semestre.getCurriculo().getDisciplinas().contains(disciplina));
         assertTrue(passado.getCurriculo().getDisciplinas().contains(disciplina));
+        assertTrue(cenario.professor.getDisciplinas().contains(disciplina));
     }
 
     private Cenario cenarioComDisciplinas(int quantidade) {
@@ -162,6 +288,16 @@ class RegrasMatriculaTest {
         secretaria.definirPeriodoMatriculas(
                 semestre, LocalDate.now().minusDays(1), LocalDate.now().plusDays(10));
         return new Cenario(secretaria, curso, professor, semestre, disciplinas);
+    }
+
+    private List<Matricula> ativas(Aluno aluno) {
+        List<Matricula> ativas = new ArrayList<>();
+        for (Matricula matricula : aluno.getMatriculas()) {
+            if (matricula.isAtiva()) {
+                ativas.add(matricula);
+            }
+        }
+        return ativas;
     }
 
     private Aluno novoAluno(Cenario cenario, String login, String matricula) {

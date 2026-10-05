@@ -39,6 +39,24 @@ public class Disciplina {
     }
 
     /**
+     * Alunos com matrícula ativa nesta disciplina apenas no semestre informado.
+     */
+    public int obterQuantidadeInscritos(Semestre semestre) {
+        if (semestre == null) {
+            return obterQuantidadeInscritos();
+        }
+        int quantidade = 0;
+        for (Matricula matricula : matriculas) {
+            if (matricula.isAtiva() && matricula.getSemestre() != null
+                    && matricula.getSemestre().getAno() == semestre.getAno()
+                    && matricula.getSemestre().getPeriodo() == semestre.getPeriodo()) {
+                quantidade++;
+            }
+        }
+        return quantidade;
+    }
+
+    /**
      * Vagas restantes. Corresponde ao atributo {@code vagas} do diagrama de classes.
      */
     public int getVagas() {
@@ -63,11 +81,25 @@ public class Disciplina {
      * menos de 3, CANCELADA.
      */
     public void avaliarAoFimDoPeriodo() {
-        if (obterQuantidadeInscritos() >= minimoAlunos) {
+        avaliarAoFimDoPeriodo(null);
+    }
+
+    /**
+     * Avalia a oferta deste semestre. Outro semestre que reutilize a disciplina começa de novo.
+     */
+    public void avaliarAoFimDoPeriodo(Semestre semestre) {
+        int inscritos = obterQuantidadeInscritos(semestre);
+        if (inscritos >= minimoAlunos) {
             this.situacao = ATIVA;
+            if (semestre != null) {
+                semestre.definirOferta(codigo, ATIVA, inscricoesEncerradas);
+            }
         } else {
             this.situacao = CANCELADA;
             this.inscricoesEncerradas = true;
+            if (semestre != null) {
+                semestre.definirOferta(codigo, CANCELADA, true);
+            }
         }
     }
 

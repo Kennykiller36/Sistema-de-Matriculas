@@ -111,6 +111,7 @@ public class PersistenciaArquivo {
             escrever("semestres.txt", semestres);
             escrever("curriculos.txt", curriculos);
             escrever("periodos.txt", periodos);
+            escrever("ofertas.txt", ofertas(secretaria));
 
             List<String> matriculas = new ArrayList<>();
             for (Aluno aluno : secretaria.getAlunos()) {
@@ -187,6 +188,7 @@ public class PersistenciaArquivo {
                 }
                 semestre.setCurriculo(curriculo);
             }
+            vincularProfessoresDosCurriculos(secretaria);
             PeriodoMatricula periodoAtual = null;
             for (String linha : ler("periodos.txt")) {
                 String[] colunas = colunas(linha, 5);
@@ -200,6 +202,7 @@ public class PersistenciaArquivo {
                 }
             }
             secretaria.setPeriodoMatriculas(periodoAtual);
+            carregarOfertas(secretaria);
 
             for (String linha : ler("matriculas.txt")) {
                 String[] colunas = colunas(linha, 6);
@@ -225,6 +228,70 @@ public class PersistenciaArquivo {
                 throw e;
             }
             throw new RegraNegocioException("Arquivo de dados inválido: " + e.getMessage());
+        }
+    }
+
+    private void vincularProfessoresDosCurriculos(Secretaria secretaria) {
+        for (Semestre semestre : secretaria.getSemestres()) {
+            if (semestre.getCurriculo() == null) {
+                continue;
+            }
+            for (Disciplina disciplina : semestre.getCurriculo().getDisciplinas()) {
+                Professor professor = disciplina.getProfessor();
+                if (professor != null && !professor.getDisciplinas().contains(disciplina)) {
+                    professor.getDisciplinas().add(disciplina);
+                }
+            }
+        }
+    }
+
+    private List<String> ofertas(Secretaria secretaria) {
+        List<String> linhas = new ArrayList<>();
+        for (Semestre semestre : secretaria.getSemestres()) {
+            if (semestre.getCurriculo() == null) {
+                continue;
+            }
+            for (Disciplina disciplina : semestre.getCurriculo().getDisciplinas()) {
+                String situacao = semestre.getSituacaoOferta(disciplina.getCodigo());
+                if (situacao == null) {
+                    situacao = disciplina.getSituacao();
+                }
+                Boolean encerradas = semestre.getInscricoesEncerradasOferta(disciplina.getCodigo());
+                boolean inscricoesEncerradas = encerradas != null
+                        ? encerradas
+                        : disciplina.isInscricoesEncerradas();
+                linhas.add(juntar(
+                        Integer.toString(semestre.getAno()),
+                        Integer.toString(semestre.getPeriodo()),
+                        disciplina.getCodigo(),
+                        situacao,
+                        Boolean.toString(inscricoesEncerradas)));
+            }
+        }
+        return linhas;
+    }
+
+    private void carregarOfertas(Secretaria secretaria) throws IOException {
+        List<String> linhas = ler("ofertas.txt");
+        if (linhas.isEmpty()) {
+            for (Semestre semestre : secretaria.getSemestres()) {
+                if (semestre.getCurriculo() == null) {
+                    continue;
+                }
+                for (Disciplina disciplina : semestre.getCurriculo().getDisciplinas()) {
+                    semestre.definirOferta(
+                            disciplina.getCodigo(),
+                            disciplina.getSituacao(),
+                            disciplina.isInscricoesEncerradas());
+                }
+            }
+            return;
+        }
+        for (String linha : linhas) {
+            String[] colunas = colunas(linha, 5);
+            Semestre semestre = buscarSemestre(
+                    secretaria, Integer.parseInt(colunas[0]), Integer.parseInt(colunas[1]));
+            semestre.definirOferta(colunas[2], colunas[3], Boolean.parseBoolean(colunas[4]));
         }
     }
 

@@ -49,9 +49,12 @@ public class Aluno extends Usuario {
         }
         matriculaAlvo.cancelar();
         Disciplina disciplina = matriculaAlvo.getDisciplina();
-        if (!Disciplina.CANCELADA.equals(disciplina.getSituacao())
-                && disciplina.obterQuantidadeInscritos() < disciplina.getCapacidadeMaxima()) {
-            disciplina.setInscricoesEncerradas(false);
+        if (!Disciplina.CANCELADA.equals(situacaoNaOferta(disciplina, semestre))
+                && disciplina.obterQuantidadeInscritos(semestre) < disciplina.getCapacidadeMaxima()) {
+            semestre.registrarInscricoesEncerradas(disciplina, false);
+            if (disciplina.obterQuantidadeInscritos() < disciplina.getCapacidadeMaxima()) {
+                disciplina.setInscricoesEncerradas(false);
+            }
         }
         finalizarMatricula(semestre);
     }
@@ -114,10 +117,10 @@ public class Aluno extends Usuario {
                 || !curso.getNome().equals(disciplina.getCurso().getNome())) {
             throw new RegraNegocioException("A disciplina não pertence ao curso do aluno.");
         }
-        if (Disciplina.CANCELADA.equals(disciplina.getSituacao())) {
+        if (Disciplina.CANCELADA.equals(situacaoNaOferta(disciplina, semestre))) {
             throw new RegraNegocioException("Disciplina cancelada.");
         }
-        if (!disciplina.possuiVaga()) {
+        if (!possuiVagaNaOferta(disciplina, semestre)) {
             throw new RegraNegocioException(
                     "Não há vaga nesta disciplina (limite de " + disciplina.getCapacidadeMaxima() + " alunos).");
         }
@@ -132,8 +135,9 @@ public class Aluno extends Usuario {
         Matricula nova = new Matricula(this, disciplina, semestre, tipo);
         matriculas.add(nova);
         disciplina.getMatriculas().add(nova);
-        if (disciplina.obterQuantidadeInscritos() >= disciplina.getCapacidadeMaxima()) {
+        if (disciplina.obterQuantidadeInscritos(semestre) >= disciplina.getCapacidadeMaxima()) {
             disciplina.encerrarInscricoes();
+            semestre.registrarInscricoesEncerradas(disciplina, true);
         }
         inscreverAoSemestre(semestre);
         return nova;
@@ -176,5 +180,17 @@ public class Aluno extends Usuario {
 
     private boolean mesmoSemestre(Semestre primeiro, Semestre segundo) {
         return primeiro.getAno() == segundo.getAno() && primeiro.getPeriodo() == segundo.getPeriodo();
+    }
+
+    private String situacaoNaOferta(Disciplina disciplina, Semestre semestre) {
+        return semestre.situacaoNaOferta(disciplina);
+    }
+
+    private boolean possuiVagaNaOferta(Disciplina disciplina, Semestre semestre) {
+        if (Disciplina.CANCELADA.equals(situacaoNaOferta(disciplina, semestre))) {
+            return false;
+        }
+        return !semestre.inscricoesEncerradasNaOferta(disciplina)
+                && disciplina.obterQuantidadeInscritos(semestre) < disciplina.getCapacidadeMaxima();
     }
 }
